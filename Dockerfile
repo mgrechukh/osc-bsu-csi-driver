@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.12.7-stretch
+FROM golang:1.12.7-stretch as builder
+WORKDIR /go/src/github.com/kubernetes-sigs/aws-ebs-csi-driver
+# Cache go modules
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
 
 ARG DEBUG_IMAGE="disable"
 
@@ -22,10 +27,10 @@ RUN apt-get -y update && \
         echo "add-auto-load-safe-path /usr/local/go/src/runtime/runtime-gdb.py" >> /root/.gdbinit; \
     fi
 
-WORKDIR /go/src/github.com/kubernetes-sigs/aws-ebs-csi-driver
-COPY . .
-RUN make -j 4 && \
-    cp /go/src/github.com/kubernetes-sigs/aws-ebs-csi-driver/bin/aws-ebs-csi-driver /bin/aws-ebs-csi-driver
+ADD . .
+RUN make
 
-
+FROM debian:stretch
+RUN apt install -yqq ca-certificates e2fsprogs xfsprogs util-linux
+COPY --from=builder /go/src/github.com/kubernetes-sigs/aws-ebs-csi-driver/bin/aws-ebs-csi-driver /bin/aws-ebs-csi-driver
 ENTRYPOINT ["/bin/aws-ebs-csi-driver"]
